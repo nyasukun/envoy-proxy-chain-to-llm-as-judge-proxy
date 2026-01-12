@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # Envoy Proxy - Forward Proxy (First hop)
+  envoy-proxy:
+    image: envoyproxy/envoy:v1.29-latest
+    container_name: envoy-proxy-chain
+    ports:
+      - "8080:8080"  # Forward proxy port
+      - "9901:9901"  # Admin interface
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - ./certs:/etc/envoy/certs:ro
+    networks:
+      - proxy-chain-network
+    depends_on:
+      - llm-as-judge-proxy
+    command: ["-c", "/etc/envoy/envoy.yaml", "-l", "debug"]
+    restart: unless-stopped
+
+  # LLM-as-Judge Proxy - Forward Proxy (Second hop)
+  llm-as-judge-proxy:
+    build:
+      context: ./llm-as-judge-proxy
+      dockerfile: Dockerfile
+    container_name: llm-as-judge-proxy
+    environment:
+      - PROXY_HOST=0.0.0.0
+      - PROXY_PORT=8888
+      - LOG_LEVEL=debug
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LLM_JUDGE_API_KEY=${OPENAI_API_KEY:-sk-dummy}
+    volumes:
+      - ./llm-as-judge-proxy/config:/app/config:ro
+      - ./certs:/app/certs:ro
+    networks:
+      - proxy-chain-network
+    expose:
+      - "8888"
+    command: ["mitmdump", "-s", "src/proxy_addon.py", "--listen-host", "0.0.0.0", "--listen-port", "8888", "--set", "block_global=false", "--ssl-insecure"]
+    restart: unless-stopped
+
+networks:
+  proxy-chain-network:
+    driver: bridge

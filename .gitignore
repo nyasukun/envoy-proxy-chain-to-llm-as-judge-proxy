@@ -1,0 +1,31 @@
+# Dependencies
+llm-as-judge-proxy/
+
+# Certificates (generated locally)
+certs/
+*.key
+*.crt
+*.csr
+*.pem
+
+# Environment variables
+.env
+.env.local
+
+# Docker
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
