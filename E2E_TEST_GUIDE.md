@@ -1,35 +1,35 @@
-# エンドツーエンドテストガイド
+# End-to-End Test Guide
 
-このガイドでは、Envoy Proxy Chainの完全なエンドツーエンドテストを実施する手順を説明します。
+This guide explains the procedure for performing complete end-to-end testing of the Envoy Proxy Chain.
 
-## 前提条件
+## Prerequisites
 
-- Docker & Docker Compose がインストールされていること
-- OpenAI APIキー（実際のAPIテストの場合）
-- curl コマンド
+- Docker & Docker Compose installed
+- OpenAI API key (for actual API testing)
+- curl command
 
-## テストシナリオ
+## Test Scenario
 
-このテストでは、以下のプロキシチェーンが正しく動作することを確認します：
+This test verifies that the following proxy chain functions correctly:
 
 ```
 Client (curl) → Envoy Proxy (8080) → llm-as-judge-proxy (8888) → OpenAI API
 ```
 
-## テスト手順
+## Test Procedure
 
-### 1. 環境のセットアップ
+### 1. Environment Setup
 
 ```bash
-# リポジトリのクローン
+# Clone the repository
 git clone <repository-url>
 cd envoy-proxy-chain-to-llm-as-judge-proxy
 
-# セットアップスクリプトの実行
+# Run the setup script
 bash scripts/setup.sh
 ```
 
-**期待される出力:**
+**Expected Output:**
 ```
 ========================================
 Envoy Proxy Chain Setup Script
@@ -49,57 +49,57 @@ Setup Complete!
 ========================================
 ```
 
-**確認ポイント:**
-- [ ] `llm-as-judge-proxy/` ディレクトリが作成されている
-- [ ] `certs/` ディレクトリに4つのファイル（ca.crt, ca.key, server.crt, server.key）が存在する
-- [ ] `.env` ファイルが作成されている
+**Verification Points:**
+- [ ] `llm-as-judge-proxy/` directory is created
+- [ ] `certs/` directory contains 4 files (ca.crt, ca.key, server.crt, server.key)
+- [ ] `.env` file is created
 
-### 2. プロキシチェーンの起動
+### 2. Start the Proxy Chain
 
 ```bash
-# Docker Composeでプロキシチェーンを起動
+# Start the proxy chain with Docker Compose
 docker compose up -d
 
-# コンテナの状態を確認
+# Check container status
 docker compose ps
 ```
 
-**期待される出力:**
+**Expected Output:**
 ```
 NAME                   IMAGE                         STATUS
 envoy-proxy-chain      envoyproxy/envoy:v1.29-latest   Up
 llm-as-judge-proxy     ...                            Up
 ```
 
-**確認ポイント:**
-- [ ] 両方のコンテナが "Up" 状態である
-- [ ] ポート8080が公開されている
-- [ ] ポート9901が公開されている（管理インターフェース）
+**Verification Points:**
+- [ ] Both containers are in "Up" status
+- [ ] Port 8080 is exposed
+- [ ] Port 9901 is exposed (admin interface)
 
-### 3. Envoy Proxyの起動確認
+### 3. Verify Envoy Proxy Startup
 
 ```bash
-# Envoyの管理インターフェースにアクセス
+# Access Envoy's admin interface
 curl http://localhost:9901/ready
 ```
 
-**期待される出力:**
+**Expected Output:**
 ```
 LIVE
 ```
 
-**確認ポイント:**
-- [ ] ステータスコード200が返される
-- [ ] レスポンスが "LIVE" である
+**Verification Points:**
+- [ ] Status code 200 is returned
+- [ ] Response is "LIVE"
 
-### 4. クラスタ状態の確認
+### 4. Check Cluster Status
 
 ```bash
-# Envoyのクラスタ状態を確認
+# Check Envoy's cluster status
 curl http://localhost:9901/clusters
 ```
 
-**期待される出力:**
+**Expected Output:**
 ```
 upstream_proxy_cluster::llm-as-judge-proxy:8888::health_flags::healthy
 upstream_proxy_cluster::llm-as-judge-proxy:8888::weight::1
@@ -107,42 +107,42 @@ upstream_proxy_cluster::llm-as-judge-proxy:8888::region::
 ...
 ```
 
-**確認ポイント:**
-- [ ] `upstream_proxy_cluster` が存在する
-- [ ] エンドポイントが `healthy` 状態である
-- [ ] `llm-as-judge-proxy:8888` が表示されている
+**Verification Points:**
+- [ ] `upstream_proxy_cluster` exists
+- [ ] Endpoint is in `healthy` state
+- [ ] `llm-as-judge-proxy:8888` is displayed
 
-### 5. プロキシ経由での基本的な接続テスト
+### 5. Basic Connection Test via Proxy
 
 ```bash
-# プロキシ環境変数を設定
+# Set proxy environment variables
 export HTTPS_PROXY=http://localhost:8080
 export HTTP_PROXY=http://localhost:8080
 
-# HTTPSサイトへの接続テスト（OpenAI API以外）
+# Test connection to HTTPS site (non-OpenAI API)
 curl -v https://www.google.com 2>&1 | grep "CONNECT"
 ```
 
-**期待される出力:**
+**Expected Output:**
 ```
 > CONNECT www.google.com:443 HTTP/1.1
 > Host: www.google.com:443
 < HTTP/1.1 200 Connection established
 ```
 
-**確認ポイント:**
-- [ ] CONNECTメソッドが使用されている
-- [ ] ステータスコード200 Connection establishedが返される
-- [ ] 接続が成功する
+**Verification Points:**
+- [ ] CONNECT method is used
+- [ ] Status code 200 Connection established is returned
+- [ ] Connection succeeds
 
-### 6. OpenAI APIエンドポイントへの接続テスト（認証なし）
+### 6. OpenAI API Endpoint Connection Test (Without Authentication)
 
 ```bash
-# OpenAI APIエンドポイントへの接続テスト（401エラーが期待される）
+# Test connection to OpenAI API endpoint (401 error expected)
 curl -v https://api.openai.com/v1/models 2>&1 | head -30
 ```
 
-**期待される出力:**
+**Expected Output:**
 ```
 * Uses proxy env variable HTTPS_PROXY == 'http://localhost:8080'
 *   Trying 127.0.0.1:8080...
@@ -157,77 +157,77 @@ curl -v https://api.openai.com/v1/models 2>&1 | head -30
 < HTTP/1.1 401 Unauthorized
 ```
 
-**確認ポイント:**
-- [ ] プロキシ（localhost:8080）への接続が成功する
-- [ ] CONNECTメソッドが使用される
-- [ ] "200 Connection established" が返される
-- [ ] OpenAI APIから401エラーが返される（これは正常な動作）
+**Verification Points:**
+- [ ] Connection to proxy (localhost:8080) succeeds
+- [ ] CONNECT method is used
+- [ ] "200 Connection established" is returned
+- [ ] 401 error is returned from OpenAI API (this is normal behavior)
 
-### 7. Envoyのアクセスログ確認
+### 7. Check Envoy Access Logs
 
 ```bash
-# Envoyのログを確認
+# Check Envoy logs
 docker compose logs envoy-proxy | grep "upstream_proxy_chaining" | tail -5
 ```
 
-**期待される出力:**
+**Expected Output:**
 ```
 [2024-01-12T10:00:00.000Z] "CONNECT - HTTP/1.1" 200 - 0 1234 100 50 "-" "curl/7.88.1" "-" "api.openai.com:443" "172.20.0.2:8888" upstream_proxy_chaining
 ```
 
-**確認ポイント:**
-- [ ] CONNECTメソッドのログが記録されている
-- [ ] ステータスコード200が記録されている
-- [ ] アップストリームホスト（llm-as-judge-proxy）のIPアドレスとポートが表示されている
-- [ ] `upstream_proxy_chaining` タグが含まれている
+**Verification Points:**
+- [ ] CONNECT method log is recorded
+- [ ] Status code 200 is recorded
+- [ ] Upstream host (llm-as-judge-proxy) IP address and port are displayed
+- [ ] `upstream_proxy_chaining` tag is included
 
-### 8. llm-as-judge-proxyのログ確認
+### 8. Check llm-as-judge-proxy Logs
 
 ```bash
-# llm-as-judge-proxyのログを確認
+# Check llm-as-judge-proxy logs
 docker compose logs llm-as-judge-proxy | grep -i "connect\|api.openai.com" | tail -10
 ```
 
-**期待される出力:**
+**Expected Output:**
 ```
 <timestamp> CONNECT api.openai.com:443
 <timestamp> >> CONNECT api.openai.com:443
 <timestamp> << HTTP/1.1 200 Connection established
 ```
 
-**確認ポイント:**
-- [ ] CONNECTリクエストが記録されている
-- [ ] `api.openai.com:443` への接続が記録されている
-- [ ] 200レスポンスが記録されている
+**Verification Points:**
+- [ ] CONNECT request is recorded
+- [ ] Connection to `api.openai.com:443` is recorded
+- [ ] 200 response is recorded
 
-### 9. OpenAI API呼び出しテスト（APIキーあり）
+### 9. OpenAI API Call Test (With API Key)
 
-**注意:** 実際のAPIキーが必要です。
+**Note:** Requires an actual API key.
 
 ```bash
-# APIキーを設定
+# Set API key
 export OPENAI_API_KEY=sk-xxxxxxxxxxxxx
 
-# モデル一覧を取得
+# Retrieve model list
 curl https://api.openai.com/v1/models \
   -H "Authorization: Bearer $OPENAI_API_KEY" | jq '.data[0].id'
 ```
 
-**期待される出力:**
+**Expected Output:**
 ```
 "gpt-4"
 ```
-（または他のモデル名）
+(or other model name)
 
-**確認ポイント:**
-- [ ] ステータスコード200が返される
-- [ ] JSONレスポンスが返される
-- [ ] モデルのリストが取得できる
+**Verification Points:**
+- [ ] Status code 200 is returned
+- [ ] JSON response is returned
+- [ ] Model list can be retrieved
 
-### 10. Chat Completion APIテスト
+### 10. Chat Completion API Test
 
 ```bash
-# Chat Completion APIを呼び出し
+# Call Chat Completion API
 curl https://api.openai.com/v1/chat/completions \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -H "Content-Type: application/json" \
@@ -238,27 +238,27 @@ curl https://api.openai.com/v1/chat/completions \
   }' | jq '.choices[0].message.content'
 ```
 
-**期待される出力:**
+**Expected Output:**
 ```
 "Hello! How can I assist you today?"
 ```
-（実際のレスポンスは異なる場合があります）
+(actual response may vary)
 
-**確認ポイント:**
-- [ ] ステータスコード200が返される
-- [ ] JSONレスポンスが返される
-- [ ] `choices[0].message.content` にテキストが含まれている
+**Verification Points:**
+- [ ] Status code 200 is returned
+- [ ] JSON response is returned
+- [ ] `choices[0].message.content` contains text
 
-### 11. プロキシチェーンの詳細確認
+### 11. Detailed Proxy Chain Verification
 
 ```bash
-# 詳細なデバッグ出力付きでリクエスト
+# Request with detailed debug output
 curl -v https://api.openai.com/v1/models \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   2>&1 | grep -E "CONNECT|Connection established|Host:|Proxy"
 ```
 
-**期待される出力:**
+**Expected Output:**
 ```
 * Uses proxy env variable HTTPS_PROXY == 'http://localhost:8080'
 * Proxy replied 200 to CONNECT request
@@ -267,112 +267,112 @@ curl -v https://api.openai.com/v1/models \
 < HTTP/1.1 200 Connection established
 ```
 
-**確認ポイント:**
-- [ ] プロキシ環境変数が認識されている
-- [ ] プロキシが200を返している
-- [ ] TLSトンネルが確立されている
+**Verification Points:**
+- [ ] Proxy environment variable is recognized
+- [ ] Proxy returns 200
+- [ ] TLS tunnel is established
 
-### 12. プロキシチェーンの完全なフロー確認
+### 12. Complete Proxy Chain Flow Verification
 
-同時に複数のターミナルを開いて、以下を実行します：
+Open multiple terminals simultaneously and execute the following:
 
-**ターミナル1（Envoyログの監視）:**
+**Terminal 1 (Monitor Envoy logs):**
 ```bash
 docker compose logs -f envoy-proxy
 ```
 
-**ターミナル2（llm-as-judge-proxyログの監視）:**
+**Terminal 2 (Monitor llm-as-judge-proxy logs):**
 ```bash
 docker compose logs -f llm-as-judge-proxy
 ```
 
-**ターミナル3（リクエスト実行）:**
+**Terminal 3 (Execute request):**
 ```bash
 export HTTPS_PROXY=http://localhost:8080
 curl https://api.openai.com/v1/models \
   -H "Authorization: Bearer $OPENAI_API_KEY"
 ```
 
-**期待される動作:**
-1. ターミナル3でリクエストが実行される
-2. ターミナル1（Envoy）に `CONNECT api.openai.com:443` のログが表示される
-3. ターミナル2（llm-as-judge-proxy）に `CONNECT api.openai.com:443` のログが表示される
-4. ターミナル3でレスポンスが返される
+**Expected Behavior:**
+1. Request is executed in Terminal 3
+2. Terminal 1 (Envoy) displays `CONNECT api.openai.com:443` log
+3. Terminal 2 (llm-as-judge-proxy) displays `CONNECT api.openai.com:443` log
+4. Terminal 3 receives response
 
-**確認ポイント:**
-- [ ] Envoyがクライアントからの接続を受け付けている
-- [ ] Envoyがllm-as-judge-proxyに転送している
-- [ ] llm-as-judge-proxyがOpenAI APIに転送している
-- [ ] レスポンスが正しく返ってくる
+**Verification Points:**
+- [ ] Envoy accepts connection from client
+- [ ] Envoy forwards to llm-as-judge-proxy
+- [ ] llm-as-judge-proxy forwards to OpenAI API
+- [ ] Response is correctly returned
 
-## テスト結果サマリー
+## Test Results Summary
 
-全てのテストが成功した場合、以下のことが確認できます：
+If all tests succeed, the following is confirmed:
 
-1. ✅ セットアップが正常に完了する
-2. ✅ Docker Composeでプロキシチェーンが起動する
-3. ✅ Envoy Proxyが正常に動作する
-4. ✅ Envoyからllm-as-judge-proxyへの接続が確立される
-5. ✅ HTTP CONNECTメソッドが正しく動作する
-6. ✅ プロキシチェーン経由でHTTPS通信が可能
-7. ✅ OpenAI APIへのリクエストが成功する
-8. ✅ 詳細なログでプロキシチェーンを追跡できる
+1. ✅ Setup completes successfully
+2. ✅ Proxy chain starts with Docker Compose
+3. ✅ Envoy Proxy functions correctly
+4. ✅ Connection from Envoy to llm-as-judge-proxy is established
+5. ✅ HTTP CONNECT method works correctly
+6. ✅ HTTPS communication via proxy chain is possible
+7. ✅ Requests to OpenAI API succeed
+8. ✅ Proxy chain can be tracked via detailed logs
 
-## トラブルシューティング
+## Troubleshooting
 
-テストが失敗した場合は、[README.md](README.md)のトラブルシューティングセクションを参照してください。
+If tests fail, refer to the Troubleshooting section in [README.md](README.md).
 
-## クリーンアップ
+## Cleanup
 
 ```bash
-# プロキシチェーンを停止
+# Stop the proxy chain
 docker compose down
 
-# ボリュームも削除する場合
+# To also remove volumes
 docker compose down -v
 ```
 
-## 自動テストスクリプト
+## Automated Test Scripts
 
-手動テストの代わりに、以下のスクリプトを使用できます：
+Instead of manual testing, you can use the following scripts:
 
 ```bash
-# 基本的なプロキシチェーンテスト
+# Basic proxy chain test
 bash scripts/test-proxy-chain.sh
 
-# OpenAI APIテスト（APIキー必要）
+# OpenAI API test (requires API key)
 export OPENAI_API_KEY=sk-xxxxxxxxxxxxx
 bash scripts/test-openai-api.sh
 ```
 
-## パフォーマンステスト
+## Performance Testing
 
-プロキシチェーンのパフォーマンスを測定する場合：
+To measure proxy chain performance:
 
 ```bash
-# レイテンシの測定
+# Measure latency
 time curl -s https://api.openai.com/v1/models \
   -H "Authorization: Bearer $OPENAI_API_KEY" > /dev/null
 
-# 複数回実行して平均を取る
+# Run multiple times to get average
 for i in {1..10}; do
   time curl -s https://api.openai.com/v1/models \
     -H "Authorization: Bearer $OPENAI_API_KEY" > /dev/null
 done
 ```
 
-## セキュリティテスト
+## Security Testing
 
-プロキシが適切に動作し、不正なリクエストを処理できることを確認：
+Verify that the proxy functions correctly and can handle invalid requests:
 
 ```bash
-# 不正なホストへの接続テスト（ブロックされるべき）
+# Test connection to invalid host (should be blocked)
 curl -v https://invalid-host-name.example.com
 
-# タイムアウトテスト
+# Test timeout
 curl --max-time 5 https://httpbin.org/delay/10
 ```
 
-## まとめ
+## Conclusion
 
-このテストガイドに従うことで、Envoy Proxy Chainが正しく設定され、期待通りに動作することを包括的に確認できます。
+By following this test guide, you can comprehensively verify that the Envoy Proxy Chain is correctly configured and functions as expected.
