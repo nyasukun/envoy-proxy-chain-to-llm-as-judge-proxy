@@ -4,6 +4,9 @@ set -e
 # Certificate generation script for llm-as-judge-proxy
 # This script generates self-signed certificates for development/testing
 
+# Disable MSYS path conversion (fixes OpenSSL -subj on Windows Git Bash)
+export MSYS_NO_PATHCONV=1
+
 CERT_DIR="./certs"
 DAYS_VALID=365
 

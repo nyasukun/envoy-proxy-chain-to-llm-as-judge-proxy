@@ -25,6 +25,7 @@ services:
       dockerfile: Dockerfile
     container_name: llm-as-judge-proxy
     environment:
+      - PYTHONPATH=/app
       - PROXY_HOST=0.0.0.0
       - PROXY_PORT=8888
       - LOG_LEVEL=debug
