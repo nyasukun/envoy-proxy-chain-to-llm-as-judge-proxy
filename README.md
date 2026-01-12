@@ -160,6 +160,128 @@ curl https://api.openai.com/v1/chat/completions \
   }'
 ```
 
+## エンドツーエンドテスト
+
+### クイックテスト
+
+簡単な動作確認を行うには、以下のコマンドを実行します：
+
+```bash
+# 1. プロキシチェーンの起動確認
+make status
+# または
+curl http://localhost:9901/ready
+
+# 2. プロキシ経由での接続テスト
+export HTTPS_PROXY=http://localhost:8080
+curl -v https://api.openai.com/v1/models 2>&1 | grep "CONNECT"
+# 期待される出力: CONNECT api.openai.com:443 HTTP/1.1
+```
+
+### 完全なエンドツーエンドテスト
+
+包括的なテスト手順については、[E2E_TEST_GUIDE.md](E2E_TEST_GUIDE.md)を参照してください。
+
+このガイドには以下の内容が含まれています：
+
+1. **セットアップの確認** - 全てのコンポーネントが正しくセットアップされているか
+2. **起動確認** - Docker Composeでプロキシチェーンが正常に起動しているか
+3. **基本的な接続テスト** - プロキシ経由でHTTPSサイトに接続できるか
+4. **OpenAI APIテスト** - プロキシ経由でOpenAI APIにアクセスできるか
+5. **ログの検証** - プロキシチェーンが正しく動作していることをログで確認
+6. **パフォーマンステスト** - レイテンシの測定
+
+### テスト結果の例
+
+正常に動作している場合の期待される出力：
+
+#### 1. プロキシチェーンの接続テスト
+
+```bash
+$ curl -v https://api.openai.com/v1/models
+* Uses proxy env variable HTTPS_PROXY == 'http://localhost:8080'
+*   Trying 127.0.0.1:8080...
+* Connected to localhost (127.0.0.1) port 8080
+> CONNECT api.openai.com:443 HTTP/1.1
+> Host: api.openai.com:443
+< HTTP/1.1 200 Connection established
+<
+* CONNECT phase completed
+* TLSv1.3 (OUT), TLS handshake, Client hello (1):
+* TLSv1.3 (IN), TLS handshake, Server hello (2):
+...
+```
+
+**確認ポイント:**
+- ✅ プロキシ（localhost:8080）への接続が成功
+- ✅ CONNECTメソッドが使用されている
+- ✅ "200 Connection established" が返される
+
+#### 2. Envoyのアクセスログ
+
+```bash
+$ docker compose logs envoy-proxy | grep "upstream_proxy_chaining"
+[2024-01-12T10:15:23.456Z] "CONNECT - HTTP/1.1" 200 - 0 2048 150 45 "-" "curl/7.88.1" "uuid" "api.openai.com:443" "172.20.0.2:8888" upstream_proxy_chaining
+```
+
+**確認ポイント:**
+- ✅ CONNECTメソッドのログが記録されている
+- ✅ ステータスコード200
+- ✅ アップストリーム先が llm-as-judge-proxy（172.20.0.2:8888）
+- ✅ `upstream_proxy_chaining` タグが含まれている
+
+#### 3. llm-as-judge-proxyのログ
+
+```bash
+$ docker compose logs llm-as-judge-proxy | grep "CONNECT"
+[2024-01-12 10:15:23] 172.20.0.3:54321: CONNECT api.openai.com:443
+[2024-01-12 10:15:23] >> CONNECT api.openai.com:443
+[2024-01-12 10:15:23] << HTTP/1.1 200 Connection established
+```
+
+**確認ポイント:**
+- ✅ Envoyからのリクエストを受信
+- ✅ OpenAI APIへCONNECTリクエストを転送
+- ✅ 接続確立に成功
+
+#### 4. プロキシチェーンのフロー確認
+
+```
+┌─────────┐         ┌──────────────┐         ┌────────────────────┐         ┌─────────────┐
+│  curl   │─(1)────>│ Envoy Proxy  │─(2)────>│ llm-as-judge-proxy │─(3)────>│ OpenAI API  │
+│         │<─(4)────│   :8080      │<─(5)────│      :8888         │<─(6)────│  :443       │
+└─────────┘         └──────────────┘         └────────────────────┘         └─────────────┘
+
+(1) CONNECT api.openai.com:443 HTTP/1.1
+(2) CONNECT api.openai.com:443 HTTP/1.1
+(3) TCP connection to api.openai.com:443
+(4) HTTP/1.1 200 Connection established
+(5) HTTP/1.1 200 Connection established
+(6) HTTP/1.1 200 Connection established
+
+その後、TLSトンネル経由でエンドツーエンドの暗号化通信
+```
+
+### 自動テストスクリプト
+
+プロジェクトには2つのテストスクリプトが含まれています：
+
+```bash
+# 基本的なプロキシチェーンのテスト
+bash scripts/test-proxy-chain.sh
+
+# OpenAI APIを使った実際のテスト（APIキー必要）
+export OPENAI_API_KEY=sk-xxxxxxxxxxxxx
+bash scripts/test-openai-api.sh
+```
+
+または、Makefileを使用：
+
+```bash
+make test        # 基本テスト
+make test-api    # OpenAI APIテスト（OPENAI_API_KEY必要）
+```
+
 ## プロキシチェーンの動作確認
 
 正常に動作している場合、Envoyのログに以下のような出力が表示されます：

@@ -25,9 +25,11 @@ services:
       dockerfile: Dockerfile
     container_name: llm-as-judge-proxy
     environment:
-      - PORT=8888
+      - PROXY_HOST=0.0.0.0
+      - PROXY_PORT=8888
       - LOG_LEVEL=debug
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LLM_JUDGE_API_KEY=${OPENAI_API_KEY:-sk-dummy}
     volumes:
       - ./llm-as-judge-proxy/config:/app/config:ro
       - ./certs:/app/certs:ro
@@ -35,6 +37,7 @@ services:
       - proxy-chain-network
     expose:
       - "8888"
+    command: ["mitmdump", "-s", "src/proxy_addon.py", "--listen-host", "0.0.0.0", "--listen-port", "8888", "--set", "block_global=false", "--ssl-insecure"]
     restart: unless-stopped
 
 networks:

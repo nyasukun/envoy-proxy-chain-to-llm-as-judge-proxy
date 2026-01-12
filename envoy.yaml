@@ -67,14 +67,6 @@ static_resources:
               socket_address:
                 address: llm-as-judge-proxy
                 port_value: 8888
-    # Use TLS to connect to upstream proxy
-    transport_socket:
-      name: envoy.transport_sockets.tls
-      typed_config:
-        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-        common_tls_context:
-          validation_context:
-            trust_chain_filename: /etc/envoy/certs/ca.crt
     # HTTP protocol options with CONNECT support
     typed_extension_protocol_options:
       envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
